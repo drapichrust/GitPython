@@ -266,7 +266,7 @@ class RepoBase(TestDBBase):
 		assert_equal(hash(b[0][0]), hash(b[9][0]))
 		c = b[0][0]
 		assert_true(git.called)
-		assert_equal(git.call_args, (('blame', 'master', '--', 'lib/git.py'), {'p': True}))
+        assert_equal(git.call_args, (('blame', 'master', 'lib/git.py'), {'p': True, 'w': True}))
 		
 		assert_equal('634396b2f541a9f2d58b00be1a07f0c358b999b3', c.hexsha)
 		assert_equal('Tom Preston-Werner', c.author.name)

@@ -684,8 +684,11 @@ class CmdHighLevelRepository(HighLevelRepository):
 		# END for each line
 		return untracked_files
 
-	def blame(self, rev, file):
-		data = self.git.blame(rev, '--', file, p=True)
+	def blame(self, rev=None, file):
+        if rev is not None:
+		    data = self.git.blame(rev, file, p=True, w=True)
+        else:
+            data = self.git.blame(file, p=True, w=True)
 		commits = dict()
 		blames = list()
 		info = None
