@@ -2,7 +2,7 @@
 :note: we could add all implementations of the basic interfaces, its more efficient though
  	to obtain them from the pure implementation"""
 from git.exc import (
-					GitCommandError, 
+					GitCommandError,
 					BadObject
 					)
 
@@ -12,7 +12,7 @@ from git.base import (
 							)
 
 from git.util import (
-							bin_to_hex, 
+							bin_to_hex,
 							hex_to_bin,
 							isfile,
 							join_path,
@@ -31,7 +31,7 @@ from git.cmd import Git
 from git.refs import (
 						Reference,
 						RemoteReference,
-						SymbolicReference, 
+						SymbolicReference,
 						TagReference
 					)
 from git.objects.commit import Commit
@@ -41,7 +41,7 @@ import os
 import sys
 
 
-__all__ = ('CmdTransportMixin', 'GitCommandMixin', 'CmdPushInfo', 'CmdFetchInfo', 
+__all__ = ('CmdTransportMixin', 'GitCommandMixin', 'CmdPushInfo', 'CmdFetchInfo',
 			'CmdRemoteProgress', 'CmdObjectDBRMixin', 'CmdHighLevelRepository')
 
 
@@ -50,8 +50,8 @@ __all__ = ('CmdTransportMixin', 'GitCommandMixin', 'CmdPushInfo', 'CmdFetchInfo'
 def touch(filename):
 	fp = open(filename, "a")
 	fp.close()
-	
-	
+
+
 def digest_process_messages(fh, progress):
 	"""Read progress messages from file-like object fh, supplying the respective
 	progress messages to the progress instance.
@@ -64,7 +64,7 @@ def digest_process_messages(fh, progress):
 		char = fh.read(1)
 		if not char:
 			break
-		
+
 		if char in ('\r', '\n'):
 			dropped_lines.extend(progress._parse_progress_line(line_so_far))
 			line_so_far = ''
@@ -73,25 +73,25 @@ def digest_process_messages(fh, progress):
 		# END process parsed line
 	# END while file is not done reading
 	return dropped_lines
-	
+
 def finalize_process(proc):
 	"""Wait for the process (fetch, pull or push) and handle its errors accordingly"""
 	try:
 		proc.wait()
-	except GitCommandError,e:
+	except GitCommandError, e:
 		# if a push has rejected items, the command has non-zero return status
 		# a return status of 128 indicates a connection error - reraise the previous one
 		if proc.poll() == 128:
 			raise
 		pass
 	# END exception handling
-	
+
 
 def get_fetch_info_from_stderr(repo, proc, progress):
 	# skip first line as it is some remote info we are not interested in
 	output = IterableList('name')
-	
-	
+
+
 	# lines which are no progress are fetch info lines
 	# this also waits for the command to finish
 	# Skip some progress lines that don't provide relevant information
@@ -107,17 +107,17 @@ def get_fetch_info_from_stderr(repo, proc, progress):
 		# END handle special messages
 		fetch_info_lines.append(line)
 	# END for each line
-	
+
 	# read head information 
-	fp = open(join(repo.git_dir, 'FETCH_HEAD'),'r')
+	fp = open(join(repo.git_dir, 'FETCH_HEAD'), 'r')
 	fetch_head_info = fp.readlines()
 	fp.close()
-	
+
 	assert len(fetch_info_lines) == len(fetch_head_info)
-	
-	output.extend(CmdFetchInfo._from_line(repo, err_line, fetch_line) 
-					for err_line,fetch_line in zip(fetch_info_lines, fetch_head_info))
-	
+
+	output.extend(CmdFetchInfo._from_line(repo, err_line, fetch_line)
+					for err_line, fetch_line in zip(fetch_info_lines, fetch_head_info))
+
 	finalize_process(proc)
 	return output
 
@@ -127,7 +127,7 @@ def get_push_info(repo, remotename_or_url, proc, progress):
 	# read the lines manually as it will use carriage returns between the messages
 	# to override the previous one. This is why we read the bytes manually
 	digest_process_messages(proc.stderr, progress)
-	
+
 	output = IterableList('name')
 	for line in proc.stdout.readlines():
 		try:
@@ -137,7 +137,7 @@ def get_push_info(repo, remotename_or_url, proc, progress):
 			pass
 		# END exception handling 
 	# END for each line
-	
+
 	finalize_process(proc)
 	return output
 
@@ -164,14 +164,14 @@ class CmdRemoteProgress(RemoteProgress):
 	__slots__ = ("_seen_ops", '_progress')
 	re_op_absolute = re.compile("(remote: )?([\w\s]+):\s+()(\d+)()(.*)")
 	re_op_relative = re.compile("(remote: )?([\w\s]+):\s+(\d+)% \((\d+)/(\d+)\)(.*)")
-	
-	def __init__(self, progress_instance = None):
+
+	def __init__(self, progress_instance=None):
 		self._seen_ops = list()
 		if progress_instance is None:
 			progress_instance = RemoteProgress()
 		#END assure proper instance
 		self._progress = progress_instance
-	
+
 	def _parse_progress_line(self, line):
 		"""Parse progress information from the given line as retrieved by git-push
 		or git-fetch
@@ -189,31 +189,31 @@ class CmdRemoteProgress(RemoteProgress):
 			# find esacpe characters and cut them away - regex will not work with 
 			# them as they are non-ascii. As git might expect a tty, it will send them
 			last_valid_index = None
-			for i,c in enumerate(reversed(sline)):
+			for i, c in enumerate(reversed(sline)):
 				if ord(c) < 32:
 					# its a slice index
-					last_valid_index = -i-1 
+					last_valid_index = -i - 1
 				# END character was non-ascii
 			# END for each character in sline
 			if last_valid_index is not None:
 				sline = sline[:last_valid_index]
 			# END cut away invalid part
 			sline = sline.rstrip()
-			
+
 			cur_count, max_count = None, None
 			match = self.re_op_relative.match(sline)
 			if match is None:
 				match = self.re_op_absolute.match(sline)
-				
+
 			if not match:
 				self._progress.line_dropped(sline)
 				failed_lines.append(sline)
 				continue
 			# END could not get match
-			
+
 			op_code = 0
 			remote, op_name, percent, cur_count, max_count, message = match.groups()
-			
+
 			# get operation id
 			if op_name == "Counting objects":
 				op_code |= self.COUNTING
@@ -238,24 +238,24 @@ class CmdRemoteProgress(RemoteProgress):
 				# drop it
 				return failed_lines
 			#END handle opcode
-			
+
 			# figure out stage
 			if op_code not in self._seen_ops:
 				self._seen_ops.append(op_code)
 				op_code |= self.BEGIN
 			# END begin opcode
-			
+
 			if message is None:
 				message = ''
 			# END message handling
-			
+
 			message = message.strip()
 			done_token = ', done.'
 			if message.endswith(done_token):
 				op_code |= self.END
 				message = message[:-len(done_token)]
 			# END end message handling
-			
+
 			self._progress.update(op_code, cur_count, max_count, message, line)
 			self._progress(message, line)
 		# END for each sub line
@@ -266,17 +266,17 @@ class CmdPushInfo(PushInfo):
 	"""
 	Pure Python implementation of a PushInfo interface
 	"""
-	__slots__ = ('local_ref', 'remote_ref_string', 'flags', 'old_commit_binsha', 
+	__slots__ = ('local_ref', 'remote_ref_string', 'flags', 'old_commit_binsha',
 				'_remotename_or_url', 'repo', 'summary')
-	
-	_flag_map = {	'X' : PushInfo.NO_MATCH, 
+
+	_flag_map = {	'X' : PushInfo.NO_MATCH,
 					'-' : PushInfo.DELETED, '*' : 0,
-					'+' : PushInfo.FORCED_UPDATE, 
-					' ' : PushInfo.FAST_FORWARD, 
-					'=' : PushInfo.UP_TO_DATE, 
+					'+' : PushInfo.FORCED_UPDATE,
+					' ' : PushInfo.FAST_FORWARD,
+					'=' : PushInfo.UP_TO_DATE,
 					'!' : PushInfo.ERROR }
-	
-	def __init__(self, flags, local_ref, remote_ref_string, repo, remotename_or_url, old_commit_binsha=None, 
+
+	def __init__(self, flags, local_ref, remote_ref_string, repo, remotename_or_url, old_commit_binsha=None,
 					summary=''):
 		""" Initialize a new instance """
 		self.flags = flags
@@ -286,7 +286,7 @@ class CmdPushInfo(PushInfo):
 		self._remotename_or_url = remotename_or_url
 		self.old_commit_binsha = old_commit_binsha
 		self.summary = summary
-		
+
 	@property
 	def remote_ref(self):
 		"""
@@ -299,35 +299,35 @@ class CmdPushInfo(PushInfo):
 		elif self.remote_ref_string.startswith("refs/heads"):
 			remote_ref = Reference(self.repo, self.remote_ref_string)
 			if '/' in self._remotename_or_url:
-				sys.stderr.write("Cannot provide RemoteReference instance if it was created from a url instead of of a remote name: %s. Returning Reference instance instead" % sefl._remotename_or_url)
+				sys.stderr.write("Cannot provide RemoteReference instance if it was created from a url instead of of a remote name: %s. Returning Reference instance instead" % self._remotename_or_url)
 				return remote_ref
 			#END assert correct input
 			return RemoteReference(self.repo, "refs/remotes/%s/%s" % (str(self._remotename_or_url), remote_ref.name))
 		else:
 			raise ValueError("Could not handle remote ref: %r" % self.remote_ref_string)
 		# END 
-		
+
 	@classmethod
 	def _from_line(cls, repo, remotename_or_url, line):
 		"""Create a new PushInfo instance as parsed from line which is expected to be like
 			refs/heads/master:refs/heads/master 05d2687..1d0568e"""
 		control_character, from_to, summary = line.split('\t', 3)
 		flags = 0
-		
+
 		# control character handling
 		try:
 			flags |= cls._flag_map[ control_character ]
 		except KeyError:
-			raise ValueError("Control Character %r unknown as parsed from line %r" % (control_character, line)) 
+			raise ValueError("Control Character %r unknown as parsed from line %r" % (control_character, line))
 		# END handle control character
-		
+
 		# from_to handling
 		from_ref_string, to_ref_string = from_to.split(':')
 		if flags & cls.DELETED:
 			from_ref = None
 		else:
 			from_ref = Reference.from_path(repo, from_ref_string)
-		
+
 		# commit handling, could be message or commit info
 		old_commit_binsha = None
 		if summary.startswith('['):
@@ -353,27 +353,27 @@ class CmdPushInfo(PushInfo):
 			old_sha, new_sha = summary.split(' ')[0].split(split_token)
 			old_commit_binsha = repo.resolve(old_sha)
 		# END message handling
-		
+
 		return cls(flags, from_ref, to_ref_string, repo, remotename_or_url, old_commit_binsha, summary)
-		
+
 
 class CmdFetchInfo(FetchInfo):
 	"""
 	Pure python implementation of a FetchInfo interface
 	"""
-	__slots__ = ('ref','old_commit_binsha', 'flags', 'note')
-	
+	__slots__ = ('ref', 'old_commit_binsha', 'flags', 'note')
+
 	#							  %c	%-*s %-*s			  -> %s		  (%s)
 	re_fetch_result = re.compile("^\s*(.) (\[?[\w\s\.]+\]?)\s+(.+) -> ([/\w_\+\.-]+)(	 \(.*\)?$)?")
-	
-	_flag_map = {	'!' : FetchInfo.ERROR, 
-					'+' : FetchInfo.FORCED_UPDATE, 
-					'-' : FetchInfo.TAG_UPDATE, 
+
+	_flag_map = {	'!' : FetchInfo.ERROR,
+					'+' : FetchInfo.FORCED_UPDATE,
+					'-' : FetchInfo.TAG_UPDATE,
 					'*' : 0,
-					'=' : FetchInfo.HEAD_UPTODATE, 
-					' ' : FetchInfo.FAST_FORWARD } 
-	
-	def __init__(self, ref, flags, note = '', old_commit_binsha = None):
+					'=' : FetchInfo.HEAD_UPTODATE,
+					' ' : FetchInfo.FAST_FORWARD }
+
+	def __init__(self, ref, flags, note='', old_commit_binsha=None):
 		"""
 		Initialize a new instance
 		"""
@@ -381,20 +381,20 @@ class CmdFetchInfo(FetchInfo):
 		self.flags = flags
 		self.note = note
 		self.old_commit_binsha = old_commit_binsha
-		
+
 	def __str__(self):
 		return self.name
-		
+
 	@property
 	def name(self):
 		""":return: Name of our remote ref"""
 		return self.ref.name
-		
+
 	@property
 	def commit(self):
 		""":return: Commit of our remote ref"""
 		return self.ref.commit
-		
+
 	@classmethod
 	def _from_line(cls, repo, line, fetch_line):
 		"""Parse information from the given line as returned by git-fetch -v
@@ -416,7 +416,7 @@ class CmdFetchInfo(FetchInfo):
 		match = cls.re_fetch_result.match(line)
 		if match is None:
 			raise ValueError("Failed to parse line: %r" % line)
-			
+
 		# parse lines
 		control_character, operation, local_remote_ref, remote_local_ref, note = match.groups()
 		try:
@@ -424,7 +424,7 @@ class CmdFetchInfo(FetchInfo):
 			ref_type_name, fetch_note = fetch_note.split(' ', 1)
 		except ValueError:	# unpack error
 			raise ValueError("Failed to parse FETCH__HEAD line: %r" % fetch_line)
-		
+
 		# handle FETCH_HEAD and figure out ref type
 		# If we do not specify a target branch like master:refs/remotes/origin/master, 
 		# the fetch result is stored in FETCH_HEAD which destroys the rule we usually
@@ -441,10 +441,10 @@ class CmdFetchInfo(FetchInfo):
 		else:
 			raise TypeError("Cannot handle reference type: %r" % ref_type_name)
 		#END handle ref type
-			
+
 		# create ref instance
 		if ref_type is SymbolicReference:
-			remote_local_ref = ref_type(repo, "FETCH_HEAD") 
+			remote_local_ref = ref_type(repo, "FETCH_HEAD")
 		else:
 			# determine prefix. Tags are usually pulled into refs/tags, they may have subdirectories.
 			# It is not clear sometimes where exactly the item is, unless we have an absolute path as indicated
@@ -466,15 +466,15 @@ class CmdFetchInfo(FetchInfo):
 			else:
 				ref_path = join_path(ref_type._common_path_default, remote_local_ref)
 			#END obtain refpath
-			
+
 			# even though the path could be within the git conventions, we make 
 			# sure we respect whatever the user wanted, and disabled path checking
 			remote_local_ref = ref_type(repo, ref_path, check_path=False)
 		# END create ref instance 
-		
-		
-		note = ( note and note.strip() ) or ''
-		
+
+
+		note = (note and note.strip()) or ''
+
 		# parse flags from control_character
 		flags = 0
 		try:
@@ -482,7 +482,7 @@ class CmdFetchInfo(FetchInfo):
 		except KeyError:
 			raise ValueError("Control character %r unknown as parsed from line %r" % (control_character, line))
 		# END control char exception hanlding 
-		
+
 		# parse operation string for more info - makes no sense for symbolic refs
 		old_commit_binsha = None
 		if isinstance(remote_local_ref, Reference):
@@ -499,22 +499,22 @@ class CmdFetchInfo(FetchInfo):
 				old_commit_binsha = repo.resolve(operation.split(split_token)[0])
 			# END handle refspec
 		# END reference flag handling
-		
+
 		return cls(remote_local_ref, flags, note, old_commit_binsha)
-		
+
 
 class GitCommandMixin(object):
 	"""A mixin to provide the git command object through the git property"""
-	
+
 	def __init__(self, *args, **kwargs):
 		"""Initialize this instance with the root and a git command"""
 		super(GitCommandMixin, self).__init__(*args, **kwargs)
 		self._git = Git(self.working_dir)
-	
+
 	@property
 	def git(self):
 		return self._git
-	
+
 
 class CmdObjectDBRMixin(object):
 	"""A mixing implementing object reading through a git command
@@ -528,7 +528,7 @@ class CmdObjectDBRMixin(object):
 	def info(self, sha):
 		hexsha, typename, size = self._git.get_object_header(bin_to_hex(sha))
 		return OInfo(hex_to_bin(hexsha), typename, size)
-		
+
 	def stream(self, sha):
 		"""For now, all lookup is done by git itself
 		:note: As we don't know when the stream is actually read (and if it is 
@@ -536,10 +536,10 @@ class CmdObjectDBRMixin(object):
 			This has HUGE performance implication, both for memory as for 
 			reading/deserializing objects, but we have no other choice in order
 			to make the database behaviour consistent with other implementations !"""
-		
+
 		hexsha, typename, size, data = self._git.get_object_data(bin_to_hex(sha))
 		return OStream(hex_to_bin(hexsha), typename, size, StringIO(data))
-		
+
 	def partial_to_complete_sha_hex(self, partial_hexsha):
 		""":return: Full binary 20 byte sha from the given partial hexsha
 		:raise AmbiguousObjectName:
@@ -552,9 +552,9 @@ class CmdObjectDBRMixin(object):
 		except (GitCommandError, ValueError):
 			raise BadObject(partial_hexsha)
 		# END handle exceptions
-	
+
 	#} END odb interface
-	
+
 
 class CmdTransportMixin(TransportDB):
 	"""A mixin requiring the .git property as well as repository paths
@@ -563,9 +563,9 @@ class CmdTransportMixin(TransportDB):
 	:note: for now, we use the git command to do all the lookup, just until he 
 		have packs and the other implementations
 	"""
-	
+
 	#{ Transport DB interface
-	
+
 	def push(self, url, refspecs=None, progress=None, **kwargs):
 		"""Push given refspecs using the git default implementation
 		:param url: may be a remote name or a url
@@ -575,7 +575,7 @@ class CmdTransportMixin(TransportDB):
 		progress = CmdRemoteProgress(progress)
 		proc = self._git.push(url, refspecs, porcelain=True, as_process=True, **add_progress(kwargs, self.git, progress))
 		return get_push_info(self, url, proc, progress)
-		
+
 	def pull(self, url, refspecs=None, progress=None, **kwargs):
 		"""Fetch and merge the given refspecs. 
 		If not refspecs are given, the merge will only work properly if you 
@@ -586,7 +586,7 @@ class CmdTransportMixin(TransportDB):
 		progress = CmdRemoteProgress(progress)
 		proc = self._git.pull(url, refspecs, with_extended_output=True, as_process=True, v=True, **add_progress(kwargs, self.git, progress))
 		return get_fetch_info_from_stderr(self, proc, progress)
-		
+
 	def fetch(self, url, refspecs=None, progress=None, **kwargs):
 		"""Fetch the latest changes
 		:param url: may be a remote name or a url
@@ -595,10 +595,10 @@ class CmdTransportMixin(TransportDB):
 		progress = CmdRemoteProgress(progress)
 		proc = self._git.fetch(url, refspecs, with_extended_output=True, as_process=True, v=True, **add_progress(kwargs, self.git, progress))
 		return get_fetch_info_from_stderr(self, proc, progress)
-		
+
 	#} end transport db interface
-	
-	
+
+
 class CmdHighLevelRepository(HighLevelRepository):
 	"""An intermediate interface carrying advanced git functionality that can be used
 	in other comound repositories which do not implement this functionality themselves.
@@ -607,24 +607,24 @@ class CmdHighLevelRepository(HighLevelRepository):
 	
 	:note: at some point, methods provided here are supposed to be provided by custom interfaces"""
 	DAEMON_EXPORT_FILE = 'git-daemon-export-ok'
-	
+
 	# precompiled regex
 	re_whitespace = re.compile(r'\s+')
 	re_hexsha_only = re.compile('^[0-9A-Fa-f]{40}$')
 	re_hexsha_shortened = re.compile('^[0-9A-Fa-f]{4,40}$')
 	re_author_committer_start = re.compile(r'^(author|committer)')
 	re_tab_full_line = re.compile(r'^\t(.*)$')
-	
+
 	#{ Configuration
 	CommitCls = Commit
 	GitCls = Git
 	#} END configuration
-	
+
 	def daemon_export():
 		def _get_daemon_export(self):
 			filename = join(self.git_dir, self.DAEMON_EXPORT_FILE)
 			return os.path.exists(filename)
-	
+
 		def _set_daemon_export(self, value):
 			filename = join(self.git_dir, self.DAEMON_EXPORT_FILE)
 			fileexists = os.path.exists(filename)
@@ -635,7 +635,7 @@ class CmdHighLevelRepository(HighLevelRepository):
 
 		return property(_get_daemon_export, _set_daemon_export,
 						doc="If True, git-daemon may export this repository")
-		
+
 	daemon_export = daemon_export()
 
 	def is_dirty(self, index=True, working_tree=True, untracked_files=False):
@@ -643,10 +643,10 @@ class CmdHighLevelRepository(HighLevelRepository):
 			# Bare repositories with no associated working directory are
 			# always consired to be clean.
 			return False
-		
+
 		# start from the one which is fastest to evaluate
 		default_args = ('--abbrev=40', '--full-index', '--raw')
-		if index: 
+		if index:
 			# diff index against HEAD
 			if isfile(self.index.path) and self.head.is_valid() and \
 				len(self.git.diff('HEAD', '--cached', *default_args)):
@@ -662,7 +662,7 @@ class CmdHighLevelRepository(HighLevelRepository):
 				return True
 		# END untracked files
 		return False
-		
+
 	@property
 	def untracked_files(self):
 		# make sure we get all files, no only untracked directores
@@ -675,7 +675,7 @@ class CmdHighLevelRepository(HighLevelRepository):
 			# skip two lines
 			stream.next()
 			stream.next()
-			
+
 			for untracked_info in stream:
 				if not untracked_info.startswith("#\t"):
 					break
@@ -684,11 +684,8 @@ class CmdHighLevelRepository(HighLevelRepository):
 		# END for each line
 		return untracked_files
 
-	def blame(self, rev=None, file):
-        if rev is not None:
-		    data = self.git.blame(rev, file, p=True, w=True)
-        else:
-            data = self.git.blame(file, p=True, w=True)
+	def blame(self, file):
+		data = self.git.blame(file, p=True, w=True)
 		commits = dict()
 		blames = list()
 		info = None
@@ -742,7 +739,7 @@ class CmdHighLevelRepository(HighLevelRepository):
 							sha = info['id']
 							c = commits.get(sha)
 							if c is None:
-								c = self.CommitCls(	 self, hex_to_bin(sha),
+								c = self.CommitCls(self, hex_to_bin(sha),
 											 author=Actor._from_string(info['author'] + ' ' + info['author_email']),
 											 authored_date=info['author_date'],
 											 committer=Actor._from_string(info['committer'] + ' ' + info['committer_email']),
@@ -751,7 +748,7 @@ class CmdHighLevelRepository(HighLevelRepository):
 								commits[sha] = c
 							# END if commit objects needs initial creation
 							m = self.re_tab_full_line.search(line)
-							text,  = m.groups()
+							text, = m.groups()
 							blames[-1][0] = c
 							blames[-1][1].append(text)
 							info = { 'id' : sha }
@@ -788,7 +785,7 @@ class CmdHighLevelRepository(HighLevelRepository):
 		if os.name == 'nt':
 			if '~' in path:
 				raise OSError("Git cannot handle the ~ character in path %r correctly" % path)
-				
+
 			# on windows, git will think paths like c: are relative and prepend the 
 			# current working dir ( before it fails ). We temporarily adjust the working 
 			# dir to make this actually work
@@ -802,7 +799,7 @@ class CmdHighLevelRepository(HighLevelRepository):
 				kwargs['with_keep_cwd'] = True
 			# END cwd preparation 
 		# END windows handling 
-		
+
 		try:
 			proc = git.clone(url, path, with_extended_output=True, as_process=True, v=True, **add_progress(kwargs, git, progress))
 			if progress is not None:
@@ -815,12 +812,12 @@ class CmdHighLevelRepository(HighLevelRepository):
 				path = prev_path
 			# END reset previous working dir
 		# END bad windows handling
-		
+
 		# our git command could have a different working dir than our actual 
 		# environment, hence we prepend its working dir if required
 		if not os.path.isabs(path) and git.working_dir:
 			path = join(git._working_dir, path)
-			
+
 		# adjust remotes - there may be operating systems which use backslashes, 
 		# These might be given as initial paths, but when handling the config file
 		# that contains the remote from which we were clones, git stops liking it
@@ -832,7 +829,7 @@ class CmdHighLevelRepository(HighLevelRepository):
 		# END handle remote repo
 		return repo
 
-	def clone(self, path, progress = None, **kwargs):
+	def clone(self, path, progress=None, **kwargs):
 		"""
 		:param kwargs:
 			All remaining keyword arguments are given to the git-clone command
@@ -841,13 +838,13 @@ class CmdHighLevelRepository(HighLevelRepository):
 		return self._clone(self.git, self.git_dir, path, CmdRemoteProgress(progress), **kwargs)
 
 	@classmethod
-	def clone_from(cls, url, to_path, progress = None, **kwargs):
+	def clone_from(cls, url, to_path, progress=None, **kwargs):
 		"""
 		:param kwargs: see the ``clone`` method
 		For more information, see the respective method in the HighLevelRepository"""
 		return cls._clone(cls.GitCls(os.getcwd()), url, to_path, CmdRemoteProgress(progress), **kwargs)
 
-	def archive(self, ostream, treeish=None, prefix=None,  **kwargs):
+	def archive(self, ostream, treeish=None, prefix=None, **kwargs):
 		"""For all args see HighLevelRepository interface
 		:parm kwargs:
 			Additional arguments passed to git-archive
@@ -858,8 +855,8 @@ class CmdHighLevelRepository(HighLevelRepository):
 		if treeish is None:
 			treeish = self.head.commit
 		if prefix and 'prefix' not in kwargs:
-			kwargs['prefix'] = prefix 
+			kwargs['prefix'] = prefix
 		kwargs['output_stream'] = ostream
-		
+
 		self.git.archive(treeish, **kwargs)
 		return self
